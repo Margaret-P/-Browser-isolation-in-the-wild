@@ -2,5 +2,6 @@ selenium
 beautifulsoup4
 webdriver-manager
 lxml
+tqdm
 matplotlib
 pandas
