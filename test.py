@@ -13,16 +13,27 @@ from tqdm import tqdm
 start_time = time.time()
 
 # CONFIGURATION 
-SITES = [ # takes around 1 minute to run these sites 
-    'https://example.com',
-    'https://github.com',
-    'https://wikipedia.org',
-    'https://youtube.com',
-    'https://facebook.com',
-]
+# SITES = [ # takes around 1 minute to run these sites 
+#     'https://example.com',
+#     'https://github.com',
+#     'https://wikipedia.org',
+#     'https://youtube.com',
+#     'https://facebook.com',
+# ]
+SITES = [] # take first 5000 from top-1m.csv
+
+with open('top-1m.csv', 'r') as file:
+    reader = csv.reader(file)
+    next(reader)  # skip header
+    for i, row in enumerate(reader):
+        if i >= 5000:
+            break
+        SITES.append(row[1])  # assuming URL is in the second column
+
+
 
 OUTPUT_FILE = 'results.csv'
-HEADLESS = True # controlls if browser shown or not
+HEADLESS = False # controlls if browser shown or not
 WAIT_TIME = 10 # 10 seconds ideal
 
 # Headers to track in columns
@@ -128,11 +139,39 @@ def extract_page_data(driver, target_url, parent_url, page_type): # visits URL, 
         return row_data, None
 
 # STEP 3: EXECUTE
+
+def sanitize_url(domain):
+    domain = domain.strip()
+
+    # If domain already has scheme, keep it
+    if domain.startswith("http://") or domain.startswith("https://"):
+        url = domain
+    else:
+        url = "https://" + domain
+
+    # Validate URL structure
+    parsed = urlparse(url)
+    if not parsed.netloc:
+        return None
+
+    # Remove illegal characters
+    if re.search(r"[\s<>\"{}|\\^`]", url):
+        return None
+
+    return url
+
+
 with open(OUTPUT_FILE, mode='w', newline='', encoding='utf-8') as file:
     writer = csv.DictWriter(file, fieldnames=csv_headers)
     writer.writeheader()
 
     for url in tqdm(SITES, desc="Running", unit="site"):
+    #santize URL and skip if invalid
+        url = sanitize_url(url)
+        if not url:
+            print(f"Skipping invalid URL: {url}")
+            continue
+    
     # for url in SITES:
         print(f"\nDoing {url}")
         time.sleep(WAIT_TIME)
