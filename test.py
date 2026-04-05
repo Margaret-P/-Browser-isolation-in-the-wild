@@ -33,8 +33,10 @@ with open('top-1m.csv', 'r') as file:
 
 
 OUTPUT_FILE = 'results.csv'
-HEADLESS = False # controlls if browser shown or not
+HEADLESS = True # controlls if browser shown or not
 WAIT_TIME = 10 # 10 seconds ideal
+
+MAX_CONSECUTIVE_TIMEOUTS = 3 # restart driver after consecttive timeouts
 
 # Headers to track in columns
 HEADERS = [
@@ -45,17 +47,18 @@ HEADERS = [
     'x-frame-options',              # XFO      clickjacking  
 ]
 
+def create_driver(): # set up selenium chrome driver 
+    print("Setting up browser")
+    options = Options()
+    if HEADLESS:
+        options.add_argument('--headless=new')
+    options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
+    options.add_experimental_option('perfLoggingPrefs', {'enableNetwork': True})
+    service = Service(ChromeDriverManager().install())
+    return webdriver.Chrome(service=service, options=options)
+
 # STEP 1: SETUP BROWSER 
-print("Setting up browser")
-options = Options()  # create options
-if HEADLESS:
-    options.add_argument('--headless=new') # manage headless mode
-
-options.set_capability('goog:loggingPrefs', {'performance': 'ALL'}) # launch chrome with Selenium and logging
-options.add_experimental_option('perfLoggingPrefs', {'enableNetwork': True})
-
-service = Service(ChromeDriverManager().install())
-driver = webdriver.Chrome(service=service, options=options) # create driver instance
+driver = create_driver()
 
 
 # STEP 2: PREPARE CSV 
@@ -165,6 +168,8 @@ with open(OUTPUT_FILE, mode='w', newline='', encoding='utf-8') as file:
     writer = csv.DictWriter(file, fieldnames=csv_headers)
     writer.writeheader()
 
+    consecutive_timeouts = 0  # track consective timeouts
+
     for url in tqdm(SITES, desc="Running", unit="site"):
     #santize URL and skip if invalid
         url = sanitize_url(url)
@@ -172,13 +177,28 @@ with open(OUTPUT_FILE, mode='w', newline='', encoding='utf-8') as file:
             print(f"Skipping invalid URL: {url}")
             continue
     
-    # for url in SITES:
         print(f"\nDoing {url}")
         time.sleep(WAIT_TIME)
         
         #Extract Main Page
         main_row, soup = extract_page_data(driver, url, url, 'Main')
         writer.writerow(main_row)
+
+        if 'HTTPConnectionPool' in main_row['Status'] or 'Read timed out' in main_row['Status']: # check for timeout streak, restart driver if needed
+            consecutive_timeouts += 1
+            print(f"Consecutive timeouts: {consecutive_timeouts}/{MAX_CONSECUTIVE_TIMEOUTS}")
+            if consecutive_timeouts >= MAX_CONSECUTIVE_TIMEOUTS:
+                print("Too many consecutive timeouts — restarting browser...")
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+                time.sleep(5)
+                driver = create_driver()
+                consecutive_timeouts = 0
+                print("Browser restarted.")
+        else:
+            consecutive_timeouts = 0  # reset on any non-timeout result
         
         # Find Login/Registration Links
         if soup:
