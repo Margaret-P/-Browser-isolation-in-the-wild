@@ -54,7 +54,7 @@ def create_driver(): # set up selenium chrome driver
         options.add_argument('--headless=new')
     options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
     options.add_experimental_option('perfLoggingPrefs', {'enableNetwork': True})
-    service = Service(ChromeDriverManager().install())
+    service = Service(ChromeDriverManager().install()) # log_output=open('chromedriver.log', 'w'))
     return webdriver.Chrome(service=service, options=options)
 
 # STEP 1: SETUP BROWSER 
@@ -183,6 +183,7 @@ with open(OUTPUT_FILE, mode='w', newline='', encoding='utf-8') as file:
         #Extract Main Page
         main_row, soup = extract_page_data(driver, url, url, 'Main')
         writer.writerow(main_row)
+        file.flush() # data not lost on crash
 
         if 'HTTPConnectionPool' in main_row['Status'] or 'Read timed out' in main_row['Status']: # check for timeout streak, restart driver if needed
             consecutive_timeouts += 1
@@ -208,8 +209,8 @@ with open(OUTPUT_FILE, mode='w', newline='', encoding='utf-8') as file:
             
             # Regex for login/register keywords
             # both login and register pages detected for github and facebooks, neither for youtube or wikipedia. (example.com doesn't have)
-            login_pattern = re.compile(r'(login|log-?in|sign-?in|auth|account)', re.IGNORECASE)
-            register_pattern = re.compile(r'(register|sign-?up|join|create[-_]?account|reg(?:/|\.php))', re.IGNORECASE)
+            login_pattern = re.compile(r'(login|log-?in|sign-?in|signin|auth|account|session|srf)', re.IGNORECASE)
+            register_pattern = re.compile(r'(register|sign-?up|signup|join|create[-_]?account|reg(?:/|\.php)|newaccount)', re.IGNORECASE)
 
             for a_tag in soup.find_all('a', href=True): # iterate all links
                 
