@@ -129,8 +129,7 @@ def extract_page_data(driver, target_url, parent_url, page_type):
     """
     Navigate to target_url, capture security response headers and iframe stats.
     Returns (row_dict, BeautifulSoup | None).
-    Raises InvalidSessionIdException / WebDriverException so the caller can
-    decide whether to restart the driver.
+    Raises InvalidSessionIdException / WebDriverException so the caller can decide whether to restart the driver.
     """
     print(f"  [{page_type}] {target_url}")
 
@@ -192,6 +191,11 @@ def extract_page_data(driver, target_url, parent_url, page_type):
 
 
 def safe_extract(driver, target_url, parent_url, page_type): # catch errors, return error instead of crash
+    """
+    Wrapper around extract_page_data to catch WebDriver exceptions.
+    If sessionr elated error is detected, it raises the exception to trigger a driver restart.
+    For other exceptions, it returns a row with the error message in the Status field.
+    """
     try:
         return extract_page_data(driver, target_url, parent_url, page_type)
     except (InvalidSessionIdException, WebDriverException) as e:
@@ -210,6 +214,13 @@ def safe_extract(driver, target_url, parent_url, page_type): # catch errors, ret
 
 
 def call_with_session_recovery(driver_ref: list, target_url, parent_url, page_type): # restart if error happens
+    """
+    Calls safe_extract and handles session related errors by restarting the driver once.
+        - driver_ref is a list with the driver instance, allowing to swap it by reference if needed.
+        - If a session error is detected on the first attempt, it restarts the driver and retries once.
+        - If it fails again, it returns a row indicating the session crash without further retries to avoid infinite loops. 
+        - For non session errors, returns the error status without retrying.
+    """
     for attempt in range(2):
         try:
             return safe_extract(driver_ref[0], target_url, parent_url, page_type)
@@ -241,6 +252,13 @@ login_pattern    = re.compile(r'(login|log-?in|sign-?in|signin|auth|account|sess
 register_pattern = re.compile(r'(register|sign-?up|signup|join|create[-_]?account|reg(?:/|\.php)|newaccount)', re.IGNORECASE)
 
 with open(OUTPUT_FILE, mode='w', newline='', encoding='utf-8') as file:
+    """
+    Main crawling loop:
+        - Iterates over each site in sites list.
+        - For each, checks reachability, extracts main page data, and looks for login/register links.
+        - Scheduled restarts every specified sites and on session related errors.
+        - Writes results to results file with columns for security headers, iframe stats, and status messages.
+    """
     writer = csv.DictWriter(file, fieldnames=csv_headers)
     writer.writeheader()
 
