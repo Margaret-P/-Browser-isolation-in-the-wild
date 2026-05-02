@@ -5,3 +5,5 @@ lxml
 tqdm
 matplotlib
 pandas
+numpy
+seaborn
